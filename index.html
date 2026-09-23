@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ma Mini App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { 
+            background-color: var(--tg-theme-bg-color); 
+            color: var(--tg-theme-text-color); 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: sans-serif;
+        }
+        .btn { background: var(--tg-theme-button-color); color: var(--tg-theme-button-text-color); padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1 id="welcome">Chargement...</h1>
+    <p id="balance">Balance : --</p>
+    <button class="btn" onclick="addCoins()">Gagner 10 coins 💰</button>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        async function init() {
+            const response = await fetch('/api/me', {
+                headers: { 'x-tg-data': tg.initData }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                document.getElementById('welcome').innerText = Salut ${tg.initDataUnsafe.user.first_name}!;
+                document.getElementById('balance').innerText = Balance : ${data.balance} coins;
+            }
+        }
+
+        async function addCoins() {
+            const response = await fetch('/api/add-coins', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-tg-data': tg.initData },
+                body: JSON.stringify({ amount: 10 })
+            });
+            if (response.ok) {
+                const data = await response.json();
+                document.getElementById('balance').innerText = Balance : ${data.newBalance} coins;
+                tg.HapticFeedback.notificationOccurred('success');
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

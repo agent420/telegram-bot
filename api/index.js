@@ -59,4 +59,9 @@ app.post('/api/add-coins', authMiddleware, async (req, res) => {
   res.json({ success: true, newBalance: req.user.balance });
 });
 
+javascript
+app.get('/', (req, res) => {
+  res.send('<h1>🚀 Serveur Backend TWA Actif !</h1><p>L\'API est disponible sur /api/me</p>');
+});
+
 module.exports = app;
