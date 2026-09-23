@@ -3,90 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TWA Debugger</title>
+    <title>Hack n Slash TWA</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { background: var(--tg-theme-bg-color); color: var(--tg-theme-text-color); font-family: sans-serif; text-align: center; padding: 20px; }
-        .log-container { background: #000; color: #0f0; text-align: left; padding: 10px; font-family: monospace; font-size: 11px; border-radius: 5px; height: 150px; overflow-y: auto; margin: 20px 0; }
-        .btn { background: var(--tg-theme-button-color); color: var(--tg-theme-button-text-color); border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
-        .status-dot { height: 10px; width: 10px; background-color: gray; border-radius: 50%; display: inline-block; margin-right: 5px; }
-        .active { background-color: lime; }
+        body { background: var(--tg-theme-bg-color); color: var(--tg-theme-text-color); font-family: sans-serif; text-align: center; margin: 0; padding: 20px; }
+        .btn { background: var(--tg-theme-button-color); color: var(--tg-theme-button-text-color); border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: bold; margin: 10px; }
+        .monster-zone { background: #222; color: white; padding: 30px; border-radius: 20px; margin: 20px 0; border: 4px solid var(--tg-//theme-button-color); }
+        #combat-log { height: 120px; overflow-y: auto; background: #000; color: #0f0; padding: 10px; font-family: monospace; font-size: 13px; border-radius: 10px; text-align: left; }
+        .hidden { display: none; }
+        .stat-bar { display: flex; justify-content: space-around; margin-bottom: 20px; font-weight: bold; }
     </style>
 </head>
 <body>
-    <h2>Diagnostic Système 🛠️</h2>
-    
-    <div style="text-align: left; display: inline-block;">
-        <div><span id="dot1" class="status-dot"></span> Telegram JS chargé</div>
-        <div><span id="dot2" class="status-dot"></span> initData récupérée</div>
-        <div><span id="dot3" class="status-dot"></span> Appel API /api/me</div>
-        <div><span id="dot4" class="status-dot"></span> Réponse reçue</div>
+    <div id="loading-screen">
+        <h2>Chargement du Donjon... ⚔️</h2>
+        <p>Liaison avec le serveur...</p>
     </div>
 
-    <div id="log" class="log-container">Démarrage du diagnostic...<br></div>
-    <div id="app"></div>
+    <div id="class-screen" class="hidden">
+        <h2>Choisissez votre Classe</h2>
+        <button class="btn" onclick="chooseClass('Warrior')">Guerrier</button>
+        <button class="btn" onclick="chooseClass('Rogue')">Rogue</button>
+        <button class="btn" onclick="chooseClass('Sorcerer')">Sorcier</button>
+    </div>
+
+    <div id="game-screen" class="hidden">
+        <div class="stat-bar">
+            <span>LVL: <span id="lvl">1</span></span>
+            <span>GOLD: <span id="gold">0</span></span>
+        </div>
+        
+        <div class="monster-zone">
+            <h3 id="monster-name">Recherche de monstre...</h3>
+            <button class="btn" onclick="attack()">ATTAQUER ! ⚔️</button>
+        </div>
+
+        <div id="combat-log"></div>
+    </div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        const logDiv = document.getElementById('log');
+        tg.ready();
+        tg.expand();
 
-        function addLog(msg, isError = false) {
-            const color = isError ? 'red' : '#0f0';
-            logDiv.innerHTML += <div style="color:${color}">> ${msg}</div>;
-            logDiv.scrollTop = logDiv.scrollHeight;
-            console.log(msg);
-        }
-
-        async function init() {
+        async function apiCall(endpoint, body = null) {
             try {
-                // ÉTAPE 1
-                addLog("Vérification du SDK Telegram...");
-                if (!tg) throw new Error("SDK Telegram introuvable");
-                document.getElementById('dot1').classList.add('active');
-                tg.ready();
-                tg.expand();
-
-                // ÉTAPE 2
-                addLog("Récupération de initData...");
-                if (!tg.initData || tg.initData.length < 10) {
-                    throw new Error("initData vide ou invalide. Lancer via le bot !");
+                const options = { headers: { 'x-tg-data': tg.initData } };
+                if (body) {
+                    options.method = 'POST';
+                    options.headers['Content-Type'] = 'application/json';
+                    options.body = JSON.stringify(body);
                 }
-                document.getElementById('dot2').classList.add('active');
-
-                // ÉTAPE 3
-                addLog("Appel au serveur : /api/me...");
-                document.getElementById('dot3').classList.add('active');
-                
-                const response = await fetch('/api/me', {
-                    headers: { 'x-tg-data': tg.initData }
-                }).catch(err => { throw new Error("Erreur réseau: " + err.message); });
-
-                if (!response.ok) {
-                    const errText = await response.text();
-                    throw new Error(Serveur erreur ${response.status}: ${errText});
-                }
-
-                // ÉTAPE 4
-                const user = await response.json();
-                document.getElementById('dot4').classList.add('active');
-                addLog("Connexion réussie ! Utilisateur : " + (user.username || user.telegramId));
-
-                // Lancement du jeu
-                document.getElementById('app').innerHTML = `
-                    <div style="margin-top:20px; padding:20px; background:var(--tg-theme-secondary-bg-color); border-radius:15px;">
-                        <h3>Bienvenue, Héros !</h3>
-                        <p>Classe : ${user.characterClass || 'Aucune'}</p>
-                        <button class="btn" onclick="alert('L\'API fonctionne !')">Tester l'API</button>
-                    </div>
-                `;
-
+                const res = await fetch(endpoint, options);
+                if (!res.ok) throw new Error(Erreur ${res.status});
+                return await res.json();
             } catch (e) {
-                addLog("ERREUR FATALE : " + e.message, true);
-                document.getElementById('app').innerHTML = <div style="color:red; margin-top:20px;">L'application a planté. Regardez le log ci-dessus.</div>;
+                console.error("API Error:", e);
+                return { error: true, message: e.message };
             }
         }
 
-        setTimeout(init, 500);
+        async function init() {
+            const user = await apiCall('/api/me');
+            if (user.error) {
+                document.getElementById('loading-screen').innerHTML = ❌ Erreur serveur.;
+                return;
+            }
+
+            document.getElementById('loading-screen').classList.add('hidden');
+            if (!user.characterClass) {
+                document.getElementById('class-screen').classList.remove('hidden');
+            } else {
+                document.getElementById('game-screen').classList.remove('hidden');
+                updateUI(user);
+                explore();
+            }
+        }
+
+        async function chooseClass(cls) {
+            await apiCall('/api/choose-class', { className: cls });
+            document.getElementById('class-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            init(); 
+        }
+
+        async function explore() {
+            const data = await apiCall('/api/explore');
+            if (data.room) {
+                document.getElementById('monster-name').innerText = data.room.monster ? data.room.monster.name : "Pièce calme";
+            }
+        }
+
+        async function attack() {
+            const data = await apiCall('/api/attack');
+            if (data.error) return;
+
+            const log = document.getElementById('combat-log');
+            data.log.forEach(l => {
+                log.innerHTML += <div>${l}</div>;
+            });
+            log.scrollTop = log.scrollHeight;
+
+            if (data.event === 'KILLED') {
+                tg.HapticFeedback.notificationOccurred('success');
+                explore();
+            }
+            const user = await apiCall('/api/me');
+            updateUI(user);
+        }
+
+        function updateUI(user) {
+            document.getElementById('lvl').innerText = user.level;
+            document.getElementById('gold').innerText = user.gold;
+        }
+
+        init();
     </script>
 </body>
 </html>
