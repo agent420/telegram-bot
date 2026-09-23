@@ -1,67 +1,67 @@
-require('dotenv').config();
-const express = require('express');
-const mongoose = require('mongoose');
-const User = require('../models/User');
-const crypto = require('crypto');
+// Table des monstres (peut être déplacée dans un fichier séparer)
+const MONSTERS = [
+  { id: 1, name: "Slime", hp: 50, atk: 2, xpReward: 20, goldReward: 10 },
+  { id: 2, name: "Gobelin", hp: 120, atk: 5, xpReward: 50, goldReward: 30 },
+  { id: 3, name: "Squelette", hp: 300, atk: 12, xpReward: 120, goldReward: 80 },
+  // ... ajoutez des monstres plus forts ici
+];
 
-const app = express();
-app.use(express.json());
+// ROUTE : Attaquer le monstre
+app.post('/api/attack', authMiddleware, async (req, res) => {
+  const user = req.user;
+  const monster = MONSTERS[user.currentMonsterId - 1] || MONSTERS[0];
 
-let isConnected = false;
-async function connectDB() {
-  if (isConnected) return;
-  try {
-    await mongoose.connect(process.env.MONGODB_URI);
-    isConnected = true;
-    console.log('✅ MongoDB Connecté');
-  } catch (err) {
-    console.error('❌ Erreur MongoDB:', err);
-    throw err;
+  // 1. Le joueur attaque le monstre
+  // Note: Dans un vrai jeu, on stockerait les HP du monstre en DB ou session
+  // Ici on simplifie : on simule un combat rapide
+  const damageDealt = user.atk + Math.floor(Math.random() * 5);
+  
+  // Simulation : Le monstre meurt si on a assez d'attaque (ou système de tours)
+  // Pour un Hack'nSlash TWA, on peut faire : 1 clic = X dégâts.
+  // Si HP monstre <= 0 :
+  const monsterKilled = true; // Simplification pour l'exemple
+
+  if (monsterKilled) {
+    user.xp += monster.xpReward;
+    user.gold += monster.goldReward;
+    user.monstersKilled += 1;
+    
+    // Gestion du Level Up
+    if (user.xp >= user.xpToNextLevel) {
+      user.level += 1;
+      user.xp -= user.xpToNextLevel;
+      user.xpToNextLevel = Math.floor(user.xpToNextLevel * 1.5);
+      user.maxHp += 20;
+      user.atk += 5;
+      user.hp = user.maxHp; // Soin complet au niveau sup
+    }
+
+    // Passer au monstre suivant
+    user.currentMonsterId += 1;
+    if (user.currentMonsterId > MONSTERS.length) user.currentMonsterId = 1;
+
+    await user.save();
+    res.json({ 
+      event: 'MONSTER_KILLED', 
+      rewardXp: monster.xpReward, 
+      rewardGold: monster.goldReward, 
+      newLevel: user.level,
+      nextMonster: MONSTERS[user.currentMonsterId - 1].name 
+    });
   }
-}
-
-function validateInitData(initData) {
-  const params = new URLSearchParams(initData);
-  const hash = params.get('hash');
-  params.delete('hash');
-  const dataCheckString = Array.from(params.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${v}`)
-    .join('\n');
-  const secretKey = crypto.createHmac('sha256', 'WebAppData').update(process.env.BOT_TOKEN).digest();
-  const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-  return calculatedHash === hash;
-}
-
-const authMiddleware = async (req, res, next) => {
-  await connectDB();
-  const initData = req.headers['x-tg-data'] || req.body.initData;
-  if (!initData || !validateInitData(initData)) {
-    return res.status(403).json({ error: 'Authentification invalide' });
-  }
-  const params = new URLSearchParams(initData);
-  const tgUser = JSON.parse(params.get('user'));
-  req.user = await User.findOneAndUpdate(
-    { telegramId: tgUser.id },
-    { $set: { username: tgUser.username, firstName: tgUser.first_name, lastActive: new Date() } },
-    { upsert: true, new: true }
-  );
-  next();
-};
-
-app.get('/api/me', authMiddleware, (req, res) => {
-  res.json({ balance: req.user.balance, referralCount: req.user.referralCount });
 });
 
-app.post('/api/add-coins', authMiddleware, async (req, res) => {
-  req.user.balance += req.body.amount || 0;
-  await req.user.save();
-  res.json({ success: true, newBalance: req.user.balance });
-});
+// ROUTE : Améliorer les capacités
+app.post('/api/upgrade', authMiddleware, async (req, res) => {
+  const { stat } = req.body; // 'atk' ou 'hp'
+  const cost = 50 * user.level; // Coût augmente avec le niveau
 
-javascript
-app.get('/', (req, res) => {
-  res.send('<h1>🚀 Serveur Backend TWA Actif !</h1><p>L\'API est disponible sur /api/me</p>');
-});
+  if (user.gold < cost) return res.status(400).json({ error: 'Pas assez d'or !' });
 
-module.exports = app;
+  user.gold -= cost;
+  if (stat === 'atk') user.atk += 2;
+  if (stat === 'hp') user.maxHp += 20;
+
+  await user.save();
+  res.json({ success: true, newStats: { atk: user.atk, maxHp: user.maxHp, gold: user.gold } });
+});

@@ -19,6 +19,68 @@
     <p id="balance">Balance : --</p>
     <button class="btn" onclick="addCoins()">Gagner 10 coins 💰</button>
 
+<style>
+  .game-container { text-align: center; padding: 20px; }
+  .monster-zone { 
+    background: #333; border-radius: 20px; padding: 40px; 
+    margin-bottom: 20px; border: 4px solid var(--tg-theme-button-color);
+  }
+  .monster-hp-bar { 
+    width: 100%; height: 20px; background: #555; border-radius: 10px; overflow: hidden;
+  }
+  .hp-fill { width: 100%; height: 100%; background: red; transition: width 0.2s; }
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+  .stat-box { background: var(--tg-theme-secondary-bg-color); padding: 10px; border-radius: 10px; }
+</style>
+
+<div class="game-container">
+  <div class="stats-grid">
+    <div class="stat-box">LVL: <span id="lvl">1</span></div>
+    <div class="stat-box">Gold: <span id="gold">0</span></div>
+  </div>
+
+  <div class="monster-zone" onclick="attackMonster()">
+    <h2 id="monster-name">Chargement...</h2>
+    <div class="monster-hp-bar"><div id="hp-fill" class="hp-fill"></div></div>
+    <p>CLIQUEZ POUR ATTAQUER ! ⚔️</p>
+  </div>
+
+  <div class="upgrade-zone">
+    <h3>Forge d'amélioration 🛠️</h3>
+    <button class="btn" onclick="upgrade('atk')">Augmenter ATK (50 gold)</button>
+    <button class="btn" onclick="upgrade('hp')">Augmenter HP (50 gold)</button>
+  </div>
+</div>
+
+<script>
+  async function attackMonster() {
+    tg.HapticFeedback.impactOccurred('medium');
+    const res = await fetch('/api/attack', {
+      method: 'POST',
+      headers: { 'x-tg-data': tg.initData }
+    });
+    const data = await res.json();
+    
+    if (data.event === 'MONSTER_KILLED') {
+      tg.HapticFeedback.notificationOccurred('success');
+      document.getElementById('monster-name').innerText = data.nextMonster;
+      // Animation de flash ou particules ici
+    }
+  }
+
+  async function upgrade(stat) {
+    const res = await fetch('/api/upgrade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-tg-data': tg.initData },
+      body: JSON.stringify({ stat })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      updateUI(data.newStats);
+    }
+  }
+</script>
+
     <script>
         const tg = window.Telegram.WebApp;
         tg.ready();
